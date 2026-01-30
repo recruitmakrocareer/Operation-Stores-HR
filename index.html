@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruitment Tracking System</title>
+    
+    <!-- 1. โหลดเครื่องมือพื้นฐาน -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 2. โหลด Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 3. ส่วนสร้างไอคอน (แก้ปัญหา lucide-react Error โดยการฝังโค้ดไอคอนลงไปเลย) ---
+        const IconBase = ({ children, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>{children}</svg>
+        );
+        const Icons = {
+            Users: (p) => <IconBase {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>,
+            Plus: (p) => <IconBase {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
+            Search: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>,
+            CheckCircle: (p) => <IconBase {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>,
+            Clock: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>,
+            XCircle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></IconBase>,
+            BarChart3: (p) => <IconBase {...p}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></IconBase>,
+            MapPin: (p) => <IconBase {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></IconBase>,
+            Briefcase: (p) => <IconBase {...p}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></IconBase>,
+            ChevronRight: (p) => <IconBase {...p}><path d="m9 18 6-6-6-6"/></IconBase>,
+            Database: (p) => <IconBase {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></IconBase>,
+            Loader2: (p) => <IconBase {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></IconBase>,
+            Trash2: (p) => <IconBase {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>,
+            ChevronDown: (p) => <IconBase {...p}><path d="m6 9 6 6 6-6"/></IconBase>,
+            Edit3: (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>,
+            X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
+            Save: (p) => <IconBase {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>,
+            Filter: (p) => <IconBase {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></IconBase>
+        };
+
+        // --- 4. การตั้งค่าระบบ (Config) ---
+        // TODO: สำคัญมาก! ต้องเอา Config จาก Firebase Console มาใส่แทนที่ด้านล่างนี้
+        const firebaseConfig = {
+            apiKey: "AIzaSy...", // <--- เปลี่ยนตรงนี้เป็น Key จริงของคุณ
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+
+        // เริ่มต้นการทำงาน Firebase
+        if (!firebase.apps.length) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+            }
+        }
+
+        const App = () => {
+            const [user, setUser] = React.useState(null);
+            const [applicants, setApplicants] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [view, setView] = React.useState('list');
+            const [editingApplicant, setEditingApplicant] = React.useState(null);
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [selectedStoreFilter, setSelectedStoreFilter] = React.useState('all');
+            const [isSubmitting, setIsSubmitting] = React.useState(false);
+            const [configError, setConfigError] = React.useState(false);
+
+            // ตัวเลือกข้อมูล
+            const STORE_LIST = [
+                { no: '1', name: 'Lardprao' },
+                { no: '25', name: 'Suphan Buri' },
+                { no: '46', name: 'Kanchanaburi' },
+                { no: '49', name: 'Ratchaburi' },
+                { no: '70', name: 'Sukhothai' },
+            ];
+            const AREA_LIST = ['Area 01', 'Area 02', 'Area 03', 'Area 04', 'Area 05'];
+            const STATUS_OPTIONS = ['อยู่ระหว่างนัดสัมภาษณ์', 'ผ่านสัมภาษณ์', 'ไม่ผ่านสัมภาษณ์', 'สละสิทธิ์', 'ติดต่อนัดหมายไม่ได้'];
+            const START_STATUS_OPTIONS = ['รอเริ่มงาน', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน (Blacklist)', 'ขอเลื่อนวันเริ่มงาน'];
+
+            const [formData, setFormData] = React.useState({
+                name: '', phone: '', storeNo: STORE_LIST[0].no, storeName: STORE_LIST[0].name,
+                area: AREA_LIST[0], position: 'ADC - Picker', company: 'ADC', department: 'Picker',
+                channel: 'สมัครโดยตรงที่สาขา', status: STATUS_OPTIONS[0], startStatus: START_STATUS_OPTIONS[0]
+            });
+
+            // ตรวจสอบ API Key ก่อนเริ่มทำงาน
+            React.useEffect(() => {
+                if (firebaseConfig.apiKey.startsWith("AIzaSy...")) {
+                    setConfigError(true);
+                    setLoading(false);
+                    return;
+                }
+                
+                const auth = firebase.auth();
+                auth.signInAnonymously().catch(err => {
+                    console.error("Login Error:", err);
+                    alert("ไม่สามารถล็อกอินได้: " + err.message);
+                });
+                
+                const unsubscribe = auth.onAuthStateChanged(setUser);
+                return () => unsubscribe();
+            }, []);
+
+            // ดึงข้อมูลเมื่อ User Login สำเร็จ
+            React.useEffect(() => {
+                if (!user) return;
+                const db = firebase.firestore();
+                const unsubscribe = db.collection('recruitment_data')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(snapshot => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setApplicants(data);
+                        setLoading(false);
+                    }, err => {
+                        console.error("Firestore Error:", err);
+                        // หาก Error เรื่อง Permission หรือ Index ให้หยุดโหลดแต่แสดงข้อมูลว่าง
+                        setLoading(false);
+                    });
+                return () => unsubscribe();
+            }, [user]);
+
+            // Form Handlers
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                if (name === 'storeNo') {
+                    const store = STORE_LIST.find(s => s.no === value);
+                    setFormData(prev => ({ ...prev, storeNo: value, storeName: store ? store.name : prev.storeName }));
+                } else if (name === 'storeName') {
+                    const store = STORE_LIST.find(s => s.name === value);
+                    setFormData(prev => ({ ...prev, storeName: value, storeNo: store ? store.no : prev.storeNo }));
+                } else {
+                    setFormData(prev => ({ ...prev, [name]: value }));
+                }
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!user || isSubmitting) return;
+                setIsSubmitting(true);
+                try {
+                    const db = firebase.firestore();
+                    await db.collection('recruitment_data').add({
+                        ...formData,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        createdBy: user.uid
+                    });
+                    setFormData({
+                        name: '', phone: '', storeNo: STORE_LIST[0].no, storeName: STORE_LIST[0].name,
+                        area: AREA_LIST[0], position: 'ADC - Picker', company: 'ADC', department: 'Picker',
+                        channel: 'สมัครโดยตรงที่สาขา', status: STATUS_OPTIONS[0], startStatus: START_STATUS_OPTIONS[0]
+                    });
+                    setView('list');
+                } catch (error) {
+                    alert("บันทึกไม่สำเร็จ: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const handleUpdateStatus = async () => {
+                if (!editingApplicant || isSubmitting) return;
+                setIsSubmitting(true);
+                try {
+                    const db = firebase.firestore();
+                    await db.collection('recruitment_data').doc(editingApplicant.id).update({
+                        status: editingApplicant.status,
+                        startStatus: editingApplicant.startStatus,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setEditingApplicant(null);
+                } catch (error) {
+                    alert("แก้ไขสถานะไม่สำเร็จ: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const deleteApplicant = async (id) => {
+                if (!confirm("ยืนยันการลบข้อมูลนี้?")) return;
+                try {
+                    const db = firebase.firestore();
+                    await db.collection('recruitment_data').doc(id).delete();
+                } catch (error) {
+                    console.error(error);
+                }
+            };
+
+            // Filters & Stats
+            const filteredApplicants = React.useMemo(() => {
+                return applicants.filter(a => {
+                    const matchesSearch = 
+                        (a.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (a.storeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (a.position || '').toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesStore = selectedStoreFilter === 'all' || a.storeNo === selectedStoreFilter;
+                    return matchesSearch && matchesStore;
+                });
+            }, [applicants, searchTerm, selectedStoreFilter]);
+
+            const stats = React.useMemo(() => ({
+                total: filteredApplicants.length,
+                onboarded: filteredApplicants.filter(a => a.startStatus === 'มาเริ่มงาน').length,
+                pending: filteredApplicants.filter(a => a.status === 'อยู่ระหว่างนัดสัมภาษณ์' || a.startStatus === 'รอเริ่มงาน').length,
+                failed: filteredApplicants.filter(a => a.status === 'ไม่ผ่านสัมภาษณ์').length
+            }), [filteredApplicants]);
+
+            const StatusBadge = ({ status }) => {
+                let colorClass = 'bg-gray-100 text-gray-700 border-gray-200';
+                if (['มาเริ่มงาน'].includes(status)) colorClass = 'bg-green-100 text-green-700 border-green-200';
+                else if (['รอเริ่มงาน'].includes(status)) colorClass = 'bg-blue-100 text-blue-700 border-blue-200';
+                else if (['อยู่ระหว่างนัดสัมภาษณ์'].includes(status)) colorClass = 'bg-yellow-100 text-yellow-700 border-yellow-200';
+                else if (['ไม่ผ่านสัมภาษณ์', 'ไม่มาเริ่มงาน (Blacklist)'].includes(status)) colorClass = 'bg-red-100 text-red-700 border-red-200';
+                return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${colorClass}`}>{status}</span>;
+            };
+
+            // --- UI: แจ้งเตือนเมื่อยังไม่ใส่ Config ---
+            if (configError) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-red-50 p-6">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md text-center border-2 border-red-100">
+                            <Icons.XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                            <h2 className="text-2xl font-bold text-red-600 mb-2">ยังไม่ได้ตั้งค่า Firebase</h2>
+                            <p className="text-slate-600 mb-6">
+                                กรุณาเปิดไฟล์ <code>index.html</code> ด้วย Notepad และนำ <b>API Key</b> จาก Firebase Console มาใส่แทนที่คำว่า <code>"AIzaSy..."</code> ในส่วน <code>firebaseConfig</code>
+                            </p>
+                            <a href="https://console.firebase.google.com/" target="_blank" className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition">
+                                ไปที่ Firebase Console
+                            </a>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (loading) return (
+                <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+                    <div className="animate-spin text-indigo-600"><Icons.Loader2 className="w-10 h-10" /></div>
+                    <p className="text-slate-500 font-medium animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</p>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-slate-50 pb-10">
+                    {/* Navbar */}
+                    <nav className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 sticky top-0 z-20 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-indigo-600 p-2 rounded-xl text-white"><Icons.Users className="w-5 h-5" /></div>
+                            <div>
+                                <h1 className="font-bold text-lg leading-tight">ระบบติดตามผู้สมัคร</h1>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                    <span className="text-[10px] text-slate-500 font-bold">Online</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setView('list')} className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${view === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`}>รายการ</button>
+                            <button onClick={() => setView('add')} className={`px-3 py-2 rounded-xl text-sm font-bold flex items-center gap-1 transition ${view === 'add' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white border border-slate-200 hover:bg-slate-50'}`}>
+                                <Icons.Plus className="w-4 h-4" /> <span className="hidden sm:inline">เพิ่มข้อมูล</span>
+                            </button>
+                        </div>
+                    </nav>
+
+                    <main className="p-4 md:p-6 max-w-7xl mx-auto">
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                            {[
+                                { l: 'ทั้งหมด', v: stats.total, Icon: Icons.BarChart3, c: 'text-indigo-500' },
+                                { l: 'เริ่มงานแล้ว', v: stats.onboarded, Icon: Icons.CheckCircle, c: 'text-green-500' },
+                                { l: 'รอดำเนินการ', v: stats.pending, Icon: Icons.Clock, c: 'text-amber-500' },
+                                { l: 'ไม่ผ่าน', v: stats.failed, Icon: Icons.XCircle, c: 'text-red-500' }
+                            ].map((s, idx) => (
+                                <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                    <div className="flex justify-between mb-1">
+                                        <span className="text-xs font-bold text-slate-400 uppercase">{s.l}</span>
+                                        <s.Icon className={`w-4 h-4 ${s.c}`} />
+                                    </div>
+                                    <div className="text-2xl font-black">{s.v}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {view === 'list' ? (
+                            <div className="space-y-4">
+                                <div className="flex flex-col md:flex-row gap-3">
+                                    <div className="relative flex-1">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search className="w-4 h-4" /></div>
+                                        <input type="text" placeholder="ค้นหาชื่อ, สาขา..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                    </div>
+                                    <div className="relative md:w-64">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Filter className="w-4 h-4" /></div>
+                                        <select className="w-full pl-10 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold outline-none appearance-none" value={selectedStoreFilter} onChange={e => setSelectedStoreFilter(e.target.value)}>
+                                            <option value="all">ทุกสาขา</option>
+                                            {STORE_LIST.map(s => <option key={s.no} value={s.no}>สาขา {s.no} - {s.name}</option>)}
+                                        </select>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">
+                                                <tr>
+                                                    <th className="px-6 py-3">ชื่อ-สกุล</th>
+                                                    <th className="px-6 py-3">สาขา</th>
+                                                    <th className="px-6 py-3">ตำแหน่ง</th>
+                                                    <th className="px-6 py-3">สถานะ</th>
+                                                    <th className="px-6 py-3 text-right">#</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-sm">
+                                                {filteredApplicants.map(app => (
+                                                    <tr key={app.id} className="hover:bg-indigo-50/30 transition">
+                                                        <td className="px-6 py-3">
+                                                            <div className="font-bold text-slate-900">{app.name}</div>
+                                                            <div className="text-xs text-slate-500">{app.phone}</div>
+                                                        </td>
+                                                        <td className="px-6 py-3">
+                                                            <div className="font-semibold text-slate-700">{app.storeName} ({app.storeNo})</div>
+                                                            <div className="text-[10px] text-slate-400 font-bold uppercase">{app.area}</div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-slate-600">{app.position}</td>
+                                                        <td className="px-6 py-3">
+                                                            <div className="flex flex-col gap-1 items-start">
+                                                                <StatusBadge status={app.status} />
+                                                                <StatusBadge status={app.startStatus} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right">
+                                                            <div className="flex justify-end gap-1">
+                                                                <button onClick={() => setEditingApplicant(app)} className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-lg transition"><Icons.Edit3 className="w-4 h-4" /></button>
+                                                                <button onClick={() => deleteApplicant(app.id)} className="p-1.5 text-slate-300 hover:text-red-600 transition"><Icons.Trash2 className="w-4 h-4" /></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        {filteredApplicants.length === 0 && <div className="p-10 text-center text-slate-400">ไม่พบข้อมูล</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                                <div className="bg-indigo-600 p-6 text-white flex items-center gap-3">
+                                    <div className="bg-white/20 p-2 rounded-lg"><Icons.Database className="w-6 h-6" /></div>
+                                    <div>
+                                        <h2 className="text-xl font-bold">เพิ่มข้อมูลใหม่</h2>
+                                        <p className="text-indigo-100 text-sm">กรอกข้อมูลผู้สมัครเพื่อบันทึกลงฐานข้อมูล</p>
+                                    </div>
+                                </div>
+                                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">ชื่อ-นามสกุล</label>
+                                            <input required name="name" value={formData.name} onChange={handleInputChange} className="w-full border rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition mt-1" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">เบอร์โทร</label>
+                                            <input required name="phone" value={formData.phone} onChange={handleInputChange} className="w-full border rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition mt-1" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">รหัสสาขา</label>
+                                            <div className="relative mt-1">
+                                                <select name="storeNo" value={formData.storeNo} onChange={handleInputChange} className="w-full border rounded-xl p-3 text-sm appearance-none bg-white">{STORE_LIST.map(s => <option key={s.no} value={s.no}>{s.no}</option>)}</select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">ชื่อสาขา</label>
+                                            <div className="relative mt-1">
+                                                <select name="storeName" value={formData.storeName} onChange={handleInputChange} className="w-full border rounded-xl p-3 text-sm appearance-none bg-white">{STORE_LIST.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}</select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase ml-1">พื้นที่ (Area)</label>
+                                        <div className="relative mt-1">
+                                            <select name="area" value={formData.area} onChange={handleInputChange} className="w-full border rounded-xl p-3 text-sm appearance-none bg-white">{AREA_LIST.map(a => <option key={a} value={a}>{a}</option>)}</select>
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 pt-4 border-t border-slate-100 mt-2">
+                                        <button type="button" onClick={() => setView('list')} className="flex-1 p-3 border rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition">ยกเลิก</button>
+                                        <button type="submit" disabled={isSubmitting} className="flex-[2] p-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
+                                            {isSubmitting && <div className="animate-spin"><Icons.Loader2 className="w-4 h-4" /></div>}
+                                            {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Edit Modal */}
+                        {editingApplicant && (
+                            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                                <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl">
+                                    <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg">แก้ไขสถานะ</h3>
+                                            <p className="text-xs text-slate-500">{editingApplicant.name}</p>
+                                        </div>
+                                        <button onClick={() => setEditingApplicant(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><Icons.X className="w-5 h-5 text-slate-400" /></button>
+                                    </div>
+                                    <div className="space-y-4 pt-2">
+                                        <div>
+                                            <label className="text-xs font-bold text-indigo-600 uppercase">สถานะสัมภาษณ์</label>
+                                            <div className="relative mt-1">
+                                                <select className="w-full border rounded-xl p-3 text-sm appearance-none bg-slate-50" value={editingApplicant.status} onChange={e => setEditingApplicant({...editingApplicant, status: e.target.value})}>
+                                                    {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                                                </select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-indigo-600 uppercase">สถานะเริ่มงาน</label>
+                                            <div className="relative mt-1">
+                                                <select className="w-full border rounded-xl p-3 text-sm appearance-none bg-slate-50" value={editingApplicant.startStatus} onChange={e => setEditingApplicant({...editingApplicant, startStatus: e.target.value})}>
+                                                    {START_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                                                </select>
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Icons.ChevronDown className="w-4 h-4" /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleUpdateStatus} disabled={isSubmitting} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition mt-2 flex items-center justify-center gap-2">
+                                        {isSubmitting ? <div className="animate-spin"><Icons.Loader2 className="w-4 h-4" /></div> : <Icons.Save className="w-4 h-4" />}
+                                        บันทึกการแก้ไข
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
