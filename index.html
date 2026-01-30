@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RecruitPro - Recruitment Tracking System</title>
+    <title>RecruitPro - Full Tracking System</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
@@ -16,11 +16,11 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Sarabun', sans-serif; scroll-behavior: smooth; }
-        .form-input-focus:focus { ring: 2px; ring-color: #4f46e5; border-color: transparent; }
+        body { font-family: 'Sarabun', sans-serif; }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
     </style>
 </head>
-<body class="bg-[#f8fafc] text-[#1e293b]">
+<body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -31,16 +31,9 @@
             Users: (p) => <IconBase {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>,
             Plus: (p) => <IconBase {...p}><path d="M5 12h14"/><path d="M12 5v14"/></IconBase>,
             Search: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>,
-            CheckCircle: (p) => <IconBase {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>,
-            Clock: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>,
-            XCircle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></IconBase>,
-            BarChart3: (p) => <IconBase {...p}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></IconBase>,
-            Loader2: (p) => <IconBase {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></IconBase>,
-            Calendar: (p) => <IconBase {...p}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></IconBase>,
-            GraduationCap: (p) => <IconBase {...p}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></IconBase>,
-            Edit3: (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>,
             Save: (p) => <IconBase {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>,
-            X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>
+            X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
+            Edit: (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>
         };
 
         const firebaseConfig = {
@@ -57,319 +50,226 @@
         const App = () => {
             const [user, setUser] = React.useState(null);
             const [applicants, setApplicants] = React.useState([]);
-            const [loading, setLoading] = React.useState(true);
             const [view, setView] = React.useState('list');
-            const [editingApplicant, setEditingApplicant] = React.useState(null);
             const [searchTerm, setSearchTerm] = React.useState('');
-            const [selectedStoreFilter, setSelectedStoreFilter] = React.useState('all');
             const [isSubmitting, setIsSubmitting] = React.useState(false);
+            const [editingApplicant, setEditingApplicant] = React.useState(null);
 
-            const STORE_LIST = [
-                { no: '1', name: 'Lardprao' }, { no: '25', name: 'Suphan Buri' },
-                { no: '46', name: 'Kanchanaburi' }, { no: '49', name: 'Ratchaburi' }, { no: '70', name: 'Sukhothai' },
-            ];
-            const EDUCATION_LIST = ['มัธยมศึกษา', 'ปวช./ปวส.', 'ปริญญาตรี', 'สูงกว่าปริญญาตรี'];
-            const STATUS_OPTIONS = ['อยู่ระหว่างนัดสัมภาษณ์', 'ผ่านสัมภาษณ์', 'ไม่ผ่านสัมภาษณ์', 'สละสิทธิ์', 'ติดต่อนัดหมายไม่ได้'];
-            const START_STATUS_OPTIONS = ['รอเริ่มงาน', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน (Blacklist)', 'ขอเลื่อนวันเริ่มงาน'];
+            // ข้อมูลตัวเลือกตามหัวข้อคอลัมน์
+            const STORES = ['1-Lardprao', '25-Suphan Buri', '46-Kanchanaburi', '49-Ratchaburi', '70-Sukhothai'];
+            const CHANNELS = ['สมัครผ่านสาขา', 'Facebook', 'Line', 'TikTok', 'Walk-in'];
+            const COMPANIES = ['ADC', 'Other'];
+            const DEPARTMENTS = ['Picker', 'Driver', 'Admin', 'Other'];
+            const POSITIONS = ['ADC - Picker', 'ADC - Driver', 'ADC - Admin'];
+            const CRIMINAL_STATUS = ['ส่งตรวจแล้ว', 'ปกติ', 'มีประวัติ (พิจารณา)', 'รอดำเนินการ'];
 
             const [formData, setFormData] = React.useState({
-                name: '', phone: '', storeNo: STORE_LIST[0].no, storeName: STORE_LIST[0].name,
                 applyDate: new Date().toISOString().split('T')[0],
-                education: EDUCATION_LIST[0], remark: '',
-                position: 'ADC - Picker', status: STATUS_OPTIONS[0], startStatus: START_STATUS_OPTIONS[0]
+                name: '', phone: '', education: 'มัธยมศึกษา',
+                store: STORES[0], area: 'Area 01',
+                company: COMPANIES[0], department: DEPARTMENTS[0], position: POSITIONS[0],
+                channel: CHANNELS[0], criminalCheck: CRIMINAL_STATUS[3],
+                interviewDate: '', interviewStatus: 'อยู่ระหว่างนัดสัมภาษณ์',
+                onboardDate: '', startStatus: 'รอเริ่มงาน', remark: ''
             });
 
             React.useEffect(() => {
-                const auth = firebase.auth();
-                auth.signInAnonymously().catch(err => console.error("Auth Error:", err));
-                const unsubscribe = auth.onAuthStateChanged(setUser);
+                firebase.auth().signInAnonymously();
+                firebase.auth().onAuthStateChanged(setUser);
+                
+                const unsubscribe = firebase.firestore().collection('recruitment_data')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(snap => {
+                        setApplicants(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    });
                 return () => unsubscribe();
             }, []);
 
-            React.useEffect(() => {
-                if (!user) return;
-                const db = firebase.firestore();
-                const unsubscribe = db.collection('recruitment_data')
-                    .orderBy('createdAt', 'desc')
-                    .onSnapshot(snapshot => {
-                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        setApplicants(data);
-                        setLoading(false);
-                    }, err => {
-                        console.error("Firestore Error:", err);
-                        setLoading(false);
-                    });
-                return () => unsubscribe();
-            }, [user]);
-
-            const handleInputChange = (e) => {
-                const { name, value } = e.target;
-                if (name === 'storeNo') {
-                    const store = STORE_LIST.find(s => s.no === value);
-                    setFormData(prev => ({ ...prev, storeNo: value, storeName: store ? store.name : prev.storeName }));
-                } else {
-                    setFormData(prev => ({ ...prev, [name]: value }));
-                }
-            };
-
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                if (!user || isSubmitting) return;
                 setIsSubmitting(true);
                 try {
-                    const db = firebase.firestore();
-                    await db.collection('recruitment_data').add({
+                    await firebase.firestore().collection('recruitment_data').add({
                         ...formData,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        createdBy: user.uid
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    setFormData({ ...formData, name: '', phone: '', remark: '' });
                     setView('list');
-                } catch (error) {
-                    alert("บันทึกไม่สำเร็จ: " + error.message);
-                } finally {
-                    setIsSubmitting(false);
-                }
+                    setFormData({...formData, name: '', phone: '', remark: ''});
+                } catch (err) { alert(err.message); }
+                setIsSubmitting(false);
             };
 
-            const handleUpdateStatus = async () => {
-                if (!editingApplicant || isSubmitting) return;
+            const handleUpdate = async () => {
                 setIsSubmitting(true);
                 try {
-                    await firebase.firestore().collection('recruitment_data').doc(editingApplicant.id).update({
-                        status: editingApplicant.status,
-                        startStatus: editingApplicant.startStatus,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    await firebase.firestore().collection('recruitment_data').doc(editingApplicant.id).update(editingApplicant);
                     setEditingApplicant(null);
-                } catch (error) {
-                    alert("แก้ไขไม่สำเร็จ: " + error.message);
-                } finally {
-                    setIsSubmitting(false);
-                }
+                } catch (err) { alert(err.message); }
+                setIsSubmitting(false);
             };
-
-            const filteredApplicants = React.useMemo(() => {
-                return applicants.filter(a => {
-                    const search = searchTerm.toLowerCase();
-                    const matchesSearch = (a.name || '').toLowerCase().includes(search) || (a.phone || '').includes(search);
-                    const matchesStore = selectedStoreFilter === 'all' || a.storeNo === selectedStoreFilter;
-                    return matchesSearch && matchesStore;
-                });
-            }, [applicants, searchTerm, selectedStoreFilter]);
-
-            const stats = React.useMemo(() => ({
-                total: filteredApplicants.length,
-                onboarded: filteredApplicants.filter(a => a.startStatus === 'มาเริ่มงาน').length,
-                pending: filteredApplicants.filter(a => a.status === 'อยู่ระหว่างนัดสัมภาษณ์').length,
-                failed: filteredApplicants.filter(a => a.status === 'ไม่ผ่านสัมภาษณ์').length
-            }), [filteredApplicants]);
-
-            const StatusBadge = ({ status }) => {
-                const colors = {
-                    'มาเริ่มงาน': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-                    'รอเริ่มงาน': 'bg-blue-100 text-blue-700 border-blue-200',
-                    'อยู่ระหว่างนัดสัมภาษณ์': 'bg-amber-100 text-amber-700 border-amber-200',
-                    'ไม่ผ่านสัมภาษณ์': 'bg-rose-100 text-rose-700 border-rose-200'
-                };
-                const colorClass = colors[status] || 'bg-slate-100 text-slate-700 border-slate-200';
-                return <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${colorClass}`}>{status}</span>;
-            };
-
-            if (loading) return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-                    <div className="animate-spin text-indigo-600 mb-4"><Icons.Loader2 className="w-12 h-12" /></div>
-                    <p className="text-slate-400 font-medium tracking-wide">กำลังเตรียมข้อมูลระบบ...</p>
-                </div>
-            );
 
             return (
-                <div className="min-h-screen pb-12">
-                    {/* Header */}
-                    <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-5 sticky top-0 z-30 flex justify-between items-center shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-indigo-200 shadow-lg"><Icons.Users className="w-6 h-6" /></div>
-                            <div>
-                                <h1 className="font-bold text-xl tracking-tight text-slate-800">RecruitPro</h1>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tracking System</p>
-                            </div>
+                <div className="min-h-screen pb-20">
+                    <nav className="bg-indigo-700 text-white p-5 flex justify-between items-center sticky top-0 z-50 shadow-lg">
+                        <div className="flex items-center gap-3">
+                            <Icons.Users className="w-7 h-7" />
+                            <h1 className="text-xl font-bold tracking-tight">RecruitPro Tracking</h1>
                         </div>
-                        <div className="flex gap-3">
-                            <button onClick={() => setView('list')} className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-all ${view === 'list' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}>รายการทั้งหมด</button>
-                            <button onClick={() => setView('add')} className="px-5 py-2.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all hover:-translate-y-0.5">
-                                <Icons.Plus className="w-4 h-4" /> เพิ่มผู้สมัคร
+                        <div className="flex gap-2">
+                            <button onClick={() => setView('list')} className={`px-4 py-2 rounded-lg font-bold text-sm ${view === 'list' ? 'bg-white text-indigo-700' : 'hover:bg-indigo-600'}`}>รายการ</button>
+                            <button onClick={() => setView('add')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${view === 'add' ? 'bg-white text-indigo-700' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
+                                <Icons.Plus className="w-4 h-4" /> เพิ่มข้อมูล
                             </button>
                         </div>
                     </nav>
 
-                    <main className="p-6 md:p-10 max-w-7xl mx-auto">
-                        {/* Summary Stats */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                            {[
-                                { l: 'ผู้สมัครทั้งหมด', v: stats.total, Icon: Icons.BarChart3, c: 'text-indigo-600', bg: 'bg-indigo-50' },
-                                { l: 'เริ่มงานสำเร็จ', v: stats.onboarded, Icon: Icons.CheckCircle, c: 'text-emerald-600', bg: 'bg-emerald-50' },
-                                { l: 'รอดำเนินการ', v: stats.pending, Icon: Icons.Clock, c: 'text-amber-600', bg: 'bg-amber-50' },
-                                { l: 'ไม่ผ่านเกณฑ์', v: stats.failed, Icon: Icons.XCircle, c: 'text-rose-600', bg: 'bg-rose-50' }
-                            ].map((s, i) => (
-                                <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className={`${s.bg} ${s.c} p-3 rounded-2xl`}><s.Icon className="w-5 h-5" /></div>
-                                        <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{s.l}</span>
-                                    </div>
-                                    <div className="text-3xl font-black text-slate-800">{s.v}</div>
+                    <main className="p-4 md:p-8 max-w-6xl mx-auto">
+                        {view === 'add' ? (
+                            <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                                <div className="bg-slate-800 p-6 text-white text-center">
+                                    <h2 className="text-xl font-bold">บันทึกข้อมูลผู้สมัคร (ตามหัวข้อ CSV)</h2>
                                 </div>
-                            ))}
-                        </div>
-
-                        {view === 'list' ? (
-                            <div className="space-y-6 animate-in fade-in duration-500">
-                                <div className="flex flex-col lg:flex-row gap-4">
-                                    <div className="relative flex-1 group">
-                                        <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input type="text" placeholder="ค้นหาตามชื่อ หรือ เบอร์โทรศัพท์..." className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] text-sm focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                <form onSubmit={handleSubmit} className="p-8 space-y-8">
+                                    {/* Section 1: Personal */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">1. ข้อมูลการสมัครและส่วนตัว</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div><label className="text-xs font-bold text-slate-400">วันที่สมัคร</label>
+                                            <input type="date" required name="applyDate" value={formData.applyDate} onChange={e => setFormData({...formData, applyDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                            <div><label className="text-xs font-bold text-slate-400">ชื่อ-นามสกุล</label>
+                                            <input required placeholder="ระบุชื่อจริง" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 focus:ring-2 ring-indigo-500/20" /></div>
+                                            <div><label className="text-xs font-bold text-slate-400">เบอร์โทรศัพท์</label>
+                                            <input required placeholder="08x-xxxxxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        </div>
                                     </div>
-                                    <select className="lg:w-72 px-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] text-sm font-bold text-slate-600 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all" value={selectedStoreFilter} onChange={e => setSelectedStoreFilter(e.target.value)}>
-                                        <option value="all">แสดงทุกสาขา</option>
-                                        {STORE_LIST.map(s => <option key={s.no} value={s.no}>สาขา {s.no} - {s.name}</option>)}
-                                    </select>
+
+                                    {/* Section 2: Work Info */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">2. ข้อมูลสังกัดและตำแหน่ง</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div><label className="text-xs font-bold text-slate-400">สาขา</label>
+                                            <select value={formData.store} onChange={e => setFormData({...formData, store: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50">
+                                                {STORES.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select></div>
+                                            <div><label className="text-xs font-bold text-slate-400">บริษัท (Company)</label>
+                                            <select value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50">
+                                                {COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select></div>
+                                            <div><label className="text-xs font-bold text-slate-400">ตำแหน่ง</label>
+                                            <select value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50">
+                                                {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Section 3: Status & Tracking */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">3. การติดตามผลและประวัติ</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div><label className="text-xs font-bold text-slate-400">ช่องทางการสมัคร</label>
+                                            <select value={formData.channel} onChange={e => setFormData({...formData, channel: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50">
+                                                {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select></div>
+                                            <div><label className="text-xs font-bold text-slate-400">สถานะตรวจประวัติอาชญากรรม</label>
+                                            <select value={formData.criminalCheck} onChange={e => setFormData({...formData, criminalCheck: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50">
+                                                {CRIMINAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select></div>
+                                            <div><label className="text-xs font-bold text-slate-400">วุฒิการศึกษา</label>
+                                            <input value={formData.education} onChange={e => setFormData({...formData, education: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 p-6 rounded-2xl space-y-2">
+                                        <label className="text-xs font-bold text-slate-400">หมายเหตุเพิ่มเติม</label>
+                                        <textarea value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} className="w-full border rounded-xl p-4 text-sm outline-none focus:ring-2 ring-indigo-500/20" rows="3" placeholder="ระบุรายละเอียดอื่นๆ เช่น ประสบการณ์ทำงาน..."></textarea>
+                                    </div>
+
+                                    <div className="flex gap-4">
+                                        <button type="button" onClick={() => setView('list')} className="flex-1 py-4 font-bold text-slate-400 hover:bg-slate-50 rounded-2xl transition">ยกเลิก</button>
+                                        <button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                                            <Icons.Save className="w-5 h-5" /> {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูลเข้าฐานข้อมูล'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="relative group">
+                                    <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-indigo-600 transition" />
+                                    <input type="text" placeholder="ค้นหาชื่อผู้สมัคร หรือ สาขา..." className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:ring-4 focus:ring-indigo-500/10 outline-none transition" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                 </div>
 
                                 <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-slate-50/50 border-b border-slate-100">
-                                                <tr className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em]">
-                                                    <th className="px-8 py-5">ข้อมูลผู้สมัคร</th>
-                                                    <th className="px-8 py-5">สาขา / วันที่สมัคร</th>
-                                                    <th className="px-8 py-5">การศึกษา / หมายเหตุ</th>
-                                                    <th className="px-8 py-5">สถานะปัจจุบัน</th>
-                                                    <th className="px-8 py-5 text-right">แอคชั่น</th>
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
+                                            <tr>
+                                                <th className="px-8 py-5">รายชื่อ / ติดต่อ</th>
+                                                <th className="px-8 py-5">ตำแหน่ง / บริษัท</th>
+                                                <th className="px-8 py-5">สถานะสัมภาษณ์</th>
+                                                <th className="px-8 py-5">สถานะเริ่มงาน</th>
+                                                <th className="px-8 py-5 text-right">#</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {applicants.filter(a => a.name?.includes(searchTerm)).map(app => (
+                                                <tr key={app.id} className="hover:bg-slate-50 transition">
+                                                    <td className="px-8 py-5">
+                                                        <div className="font-bold text-slate-800">{app.name}</div>
+                                                        <div className="text-xs text-indigo-500 font-bold">{app.phone}</div>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-sm font-semibold text-slate-600">
+                                                        {app.position}
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">{app.company}</div>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${app.interviewStatus === 'ผ่านสัมภาษณ์' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                            {app.interviewStatus}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="text-xs font-bold text-slate-500">{app.startStatus}</span>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-right">
+                                                        <button onClick={() => setEditingApplicant(app)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition">
+                                                            <Icons.Edit className="w-5 h-5" />
+                                                        </button>
+                                                    </td>
                                                 </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50">
-                                                {filteredApplicants.map(app => (
-                                                    <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-8 py-6">
-                                                            <div className="font-bold text-slate-800 text-sm">{app.name}</div>
-                                                            <div className="text-xs text-indigo-500 font-bold mt-1">{app.phone}</div>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div className="text-xs font-bold text-slate-600">{app.storeName} ({app.storeNo})</div>
-                                                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5 font-medium"><Icons.Calendar className="w-3 h-3"/> {app.applyDate}</div>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5"><Icons.GraduationCap className="w-3.5 h-3.5"/> {app.education}</div>
-                                                            <div className="text-[11px] text-slate-400 mt-1.5 italic max-w-[150px] truncate">{app.remark || '- ไม่มีหมายเหตุ -'}</div>
-                                                        </td>
-                                                        <td className="px-8 py-6">
-                                                            <div className="flex flex-col gap-1.5 items-start">
-                                                                <StatusBadge status={app.status} />
-                                                                <StatusBadge status={app.startStatus} />
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-6 text-right">
-                                                            <button onClick={() => setEditingApplicant(app)} className="p-3 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all">
-                                                                <Icons.Edit3 className="w-5 h-5" />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                        {filteredApplicants.length === 0 && <div className="p-20 text-center"><p className="text-slate-300 text-sm font-medium">ไม่พบข้อมูลที่คุณกำลังค้นหา</p></div>}
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="max-w-2xl mx-auto animate-in slide-in-from-bottom-8 duration-500">
-                                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-indigo-100 border border-slate-100 overflow-hidden">
-                                    <div className="bg-indigo-600 p-10 text-white relative overflow-hidden">
-                                        <Icons.Users className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
-                                        <h2 className="text-2xl font-black tracking-tight">ลงทะเบียนผู้สมัครใหม่</h2>
-                                        <p className="text-indigo-100 text-sm mt-1 font-medium opacity-80">กรุณากรอกข้อมูลให้ครบถ้วนเพื่อประสิทธิภาพในการติดตาม</p>
-                                    </div>
-                                    <form onSubmit={handleSubmit} className="p-10 space-y-8">
-                                        <div className="space-y-6">
-                                            <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] border-b border-indigo-50 pb-2">1. ข้อมูลส่วนตัวและการติดต่อ</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-slate-500 ml-1">ชื่อ - นามสกุล</label>
-                                                    <input required name="name" value={formData.name} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm focus:border-indigo-500 outline-none transition-all bg-slate-50/50" placeholder="ระบุชื่อจริงและนามสกุล" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-slate-500 ml-1">เบอร์โทรศัพท์</label>
-                                                    <input required name="phone" value={formData.phone} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm focus:border-indigo-500 outline-none transition-all bg-slate-50/50" placeholder="08x-xxx-xxxx" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            <h3 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] border-b border-indigo-50 pb-2">2. ข้อมูลการสมัครและวุฒิการศึกษา</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-slate-500 ml-1">วันที่สมัคร / นัดสัมภาษณ์</label>
-                                                    <input type="date" name="applyDate" value={formData.applyDate} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm focus:border-indigo-500 outline-none transition-all bg-slate-50/50" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-slate-500 ml-1">ระดับการศึกษาสูงสุด</label>
-                                                    <select name="education" value={formData.education} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm outline-none bg-slate-50/50 appearance-none">
-                                                        {EDUCATION_LIST.map(e => <option key={e} value={e}>{e}</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-slate-500 ml-1">เลือกสาขาที่สมัคร</label>
-                                                <select name="storeNo" value={formData.storeNo} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm outline-none bg-slate-50/50">
-                                                    {STORE_LIST.map(s => <option key={s.no} value={s.no}>สาขา {s.no} - {s.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-slate-500 ml-1">หมายเหตุเพิ่มเติม</label>
-                                                <textarea name="remark" value={formData.remark} onChange={handleInputChange} className="w-full border-slate-200 border rounded-2xl p-4 text-sm focus:border-indigo-500 outline-none transition-all bg-slate-50/50 min-h-[100px]" placeholder="รายละเอียดเพิ่มเติม ประสบการณ์ หรือข้อมูลประกอบการพิจารณา..." />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-4 pt-6">
-                                            <button type="button" onClick={() => setView('list')} className="flex-1 py-4 border border-slate-200 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-all">ยกเลิก</button>
-                                            <button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-3">
-                                                {isSubmitting ? <Icons.Loader2 className="w-5 h-5 animate-spin" /> : <Icons.Save className="w-5 h-5" />}
-                                                {isSubmitting ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันการบันทึกข้อมูล'}
-                                            </button>
-                                        </div>
-                                    </form>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Edit Status Modal */}
+                    {/* Edit Modal สำหรับแก้ไขสถานะ (เพิ่มช่อง วันที่สัมภาษณ์ และ วันเริ่มงาน) */}
                     {editingApplicant && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
-                            <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-300">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div>
-                                        <h3 className="font-black text-xl text-slate-800">อัปเดตสถานะ</h3>
-                                        <p className="text-xs text-indigo-500 font-bold mt-1">{editingApplicant.name}</p>
-                                    </div>
-                                    <button onClick={() => setEditingApplicant(null)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all text-slate-400"><Icons.X className="w-6 h-6" /></button>
+                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="font-black text-xl text-slate-800">อัปเดตสถานะงาน</h3>
+                                    <button onClick={() => setEditingApplicant(null)} className="text-slate-400"><Icons.X /></button>
                                 </div>
-                                <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">สถานะสัมภาษณ์</label>
-                                        <select className="w-full border border-slate-200 rounded-2xl p-4 text-sm font-bold bg-slate-50 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all" value={editingApplicant.status} onChange={e => setEditingApplicant({...editingApplicant, status: e.target.value})}>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-[10px] font-bold text-indigo-600 uppercase">วันที่สัมภาษณ์</label>
+                                        <input type="date" value={editingApplicant.interviewDate} onChange={e => setEditingApplicant({...editingApplicant, interviewDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        <div><label className="text-[10px] font-bold text-indigo-600 uppercase">สถานะสัมภาษณ์</label>
+                                        <select value={editingApplicant.interviewStatus} onChange={e => setEditingApplicant({...editingApplicant, interviewStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
                                             {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                                        </select>
+                                        </select></div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">สถานะเริ่มงาน</label>
-                                        <select className="w-full border border-slate-200 rounded-2xl p-4 text-sm font-bold bg-slate-50 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all" value={editingApplicant.startStatus} onChange={e => setEditingApplicant({...editingApplicant, startStatus: e.target.value})}>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-[10px] font-bold text-indigo-600 uppercase">วันที่เริ่มงาน</label>
+                                        <input type="date" value={editingApplicant.onboardDate} onChange={e => setEditingApplicant({...editingApplicant, onboardDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        <div><label className="text-[10px] font-bold text-indigo-600 uppercase">สถานะเริ่มงาน</label>
+                                        <select value={editingApplicant.startStatus} onChange={e => setEditingApplicant({...editingApplicant, startStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
                                             {START_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                                        </select>
+                                        </select></div>
                                     </div>
-                                    <button onClick={handleUpdateStatus} disabled={isSubmitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3 mt-4">
-                                        {isSubmitting ? <Icons.Loader2 className="w-5 h-5 animate-spin" /> : <Icons.Save className="w-5 h-5" />}
-                                        บันทึกการเปลี่ยนแปลง
+                                    <button onClick={handleUpdate} disabled={isSubmitting} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition flex items-center justify-center gap-3">
+                                        <Icons.Save className="w-5 h-5" /> บันทึกการเปลี่ยนแปลง
                                     </button>
                                 </div>
                             </div>
