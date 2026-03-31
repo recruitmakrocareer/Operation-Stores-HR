@@ -33,7 +33,12 @@
             Search: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>,
             Save: (p) => <IconBase {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>,
             X: (p) => <IconBase {...p}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>,
-            Edit: (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>
+            Edit: (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconBase>,
+            Database: (p) => <IconBase {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></IconBase>,
+            Check: (p) => <IconBase {...p}><polyline points="20 6 9 17 4 12"/></IconBase>,
+            AlertCircle: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconBase>,
+            Loader: (p) => <IconBase {...p}><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></IconBase>,
+            RefreshCw: (p) => <IconBase {...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>
         };
 
         const firebaseConfig = {
@@ -47,6 +52,9 @@
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
+        const STATUS_OPTIONS = ['อยู่ระหว่างนัดสัมภาษณ์', 'ผ่านสัมภาษณ์', 'ไม่รับ/ยกเลิก'];
+        const START_STATUS_OPTIONS = ['รอเริ่มงาน', 'เริ่มงานแล้ว', 'ไม่มาตามนัด'];
+
         const App = () => {
             const [user, setUser] = React.useState(null);
             const [applicants, setApplicants] = React.useState([]);
@@ -55,7 +63,12 @@
             const [isSubmitting, setIsSubmitting] = React.useState(false);
             const [editingApplicant, setEditingApplicant] = React.useState(null);
 
-            // ข้อมูลตัวเลือกตามหัวข้อคอลัมน์
+            // [TEST] Integration state
+            const [testApplicants, setTestApplicants] = React.useState([]);
+            const [testView, setTestView] = React.useState(false);
+            const [testLoading, setTestLoading] = React.useState(false);
+            const [approvingId, setApprovingId] = React.useState(null);
+
             const STORES = ['1-Lardprao', '25-Suphan Buri', '46-Kanchanaburi', '49-Ratchaburi', '70-Sukhothai'];
             const CHANNELS = ['สมัครผ่านสาขา', 'Facebook', 'Line', 'TikTok', 'Walk-in'];
             const COMPANIES = ['ADC', 'Other'];
@@ -84,6 +97,49 @@
                     });
                 return () => unsubscribe();
             }, []);
+
+            // [TEST] Load data from TA-Area-HR integration
+            const loadTestData = () => {
+                setTestLoading(true);
+                firebase.firestore().collection('recruitment_data_TEST')
+                    .orderBy('createdAt', 'desc')
+                    .get()
+                    .then(snap => {
+                        setTestApplicants(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        setTestLoading(false);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        setTestLoading(false);
+                    });
+            };
+
+            React.useEffect(() => {
+                if (testView) loadTestData();
+            }, [testView]);
+
+            // [TEST] Approve: move from TEST collection to production recruitment_data
+            const approveTestRecord = async (record) => {
+                setApprovingId(record.id);
+                try {
+                    const { sourceSystem, sourceId, _approved, _approvedAt, id, ...prodData } = record;
+                    await firebase.firestore().collection('recruitment_data').add({
+                        ...prodData,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        approvedFrom: 'TA-Area-HR',
+                        approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    await firebase.firestore().collection('recruitment_data_TEST').doc(record.id).update({
+                        _approved: true,
+                        _approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setTestApplicants(prev => prev.map(a => a.id === record.id ? { ...a, _approved: true } : a));
+                    alert('อนุมัติ "' + record.name + '" สำเร็จ — ย้ายข้อมูลเข้า Applicant_Tracking แล้ว');
+                } catch (err) {
+                    alert('เกิดข้อผิดพลาด: ' + err.message);
+                }
+                setApprovingId(null);
+            };
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
@@ -115,35 +171,136 @@
                             <Icons.Users className="w-7 h-7" />
                             <h1 className="text-xl font-bold tracking-tight">RecruitPro Tracking</h1>
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => setView('list')} className={`px-4 py-2 rounded-lg font-bold text-sm ${view === 'list' ? 'bg-white text-indigo-700' : 'hover:bg-indigo-600'}`}>รายการ</button>
-                            <button onClick={() => setView('add')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${view === 'add' ? 'bg-white text-indigo-700' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
+                        <div className="flex gap-2 flex-wrap">
+                            <button onClick={() => { setView('list'); setTestView(false); }} className={`px-4 py-2 rounded-lg font-bold text-sm ${view === 'list' && !testView ? 'bg-white text-indigo-700' : 'hover:bg-indigo-600'}`}>รายการ</button>
+                            <button onClick={() => { setView('add'); setTestView(false); }} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${view === 'add' && !testView ? 'bg-white text-indigo-700' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
                                 <Icons.Plus className="w-4 h-4" /> เพิ่มข้อมูล
+                            </button>
+                            <button onClick={() => { setTestView(true); setView('list'); }} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border-2 border-yellow-300 ${testView ? 'bg-yellow-300 text-indigo-900' : 'hover:bg-indigo-600'}`}>
+                                <Icons.Database className="w-4 h-4" /> TA-Area [TEST]
                             </button>
                         </div>
                     </nav>
 
                     <main className="p-4 md:p-8 max-w-6xl mx-auto">
-                        {view === 'add' ? (
+
+                        {/* [TEST] TA-Area Integration View */}
+                        {testView && (
+                            <div className="space-y-6">
+                                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-5">
+                                    <div className="flex items-center justify-between flex-wrap gap-3">
+                                        <div>
+                                            <h2 className="text-lg font-black text-yellow-800 flex items-center gap-2">
+                                                <Icons.Database className="w-5 h-5" />
+                                                ข้อมูลทดสอบจาก TA-Area-HR
+                                            </h2>
+                                            <p className="text-sm text-yellow-700 mt-1">
+                                                ข้อมูลจาก <code className="bg-yellow-100 px-1 rounded font-mono text-xs">recruitment_data_TEST</code> — กด "อนุมัติ" เพื่อย้ายเข้า Applicant_Tracking จริง
+                                            </p>
+                                        </div>
+                                        <button onClick={loadTestData} className="flex items-center gap-2 px-4 py-2 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-xl font-bold text-sm transition">
+                                            <Icons.RefreshCw className="w-4 h-4" /> รีเฟรช
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {testLoading ? (
+                                    <div className="flex justify-center py-20">
+                                        <Icons.Loader className="w-8 h-8 text-indigo-400 animate-spin" />
+                                    </div>
+                                ) : testApplicants.length === 0 ? (
+                                    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                                        <Icons.Database className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                        <p className="text-slate-400 font-bold text-lg">ยังไม่มีข้อมูลในระบบทดสอบ</p>
+                                        <p className="text-slate-300 text-sm mt-2">ไปที่แอป TA-Area-HR แล้วกดปุ่ม Database (ไอคอนฐานข้อมูล) ที่แถวผู้สมัครแต่ละคน</p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-600">{testApplicants.length} รายการ (อนุมัติแล้ว: {testApplicants.filter(a => a._approved).length})</span>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
+                                                <tr>
+                                                    <th className="px-6 py-4">รายชื่อ / ติดต่อ</th>
+                                                    <th className="px-6 py-4">ตำแหน่ง / สาขา</th>
+                                                    <th className="px-6 py-4">สถานะ</th>
+                                                    <th className="px-6 py-4">TA / ช่องทาง</th>
+                                                    <th className="px-6 py-4 text-right">การดำเนินการ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {testApplicants.map(app => (
+                                                    <tr key={app.id} className={`hover:bg-slate-50 transition ${app._approved ? 'bg-emerald-50/40' : ''}`}>
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-bold text-slate-800">{app.name}</div>
+                                                            <div className="text-xs text-indigo-500 font-bold">{app.phone}</div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">สมัคร: {app.applyDate}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="font-semibold text-sm text-slate-700">{app.position}</div>
+                                                            <div className="text-xs text-slate-400">{app.store}</div>
+                                                            <div className="text-[10px] text-slate-400">{app.area}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${app.interviewStatus === 'ผ่านสัมภาษณ์' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                                                                {app.interviewStatus}
+                                                            </span>
+                                                            {app.onboardDate && <div className="text-[10px] text-slate-400 mt-1">เริ่มงาน: {app.onboardDate}</div>}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="text-xs font-semibold text-slate-600">
+                                                                {app.remark && app.remark.match(/\[TA: ([^\]]+)\]/) ? app.remark.match(/\[TA: ([^\]]+)\]/)[1] : '-'}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">{app.channel}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {app._approved ? (
+                                                                <span className="flex items-center justify-end gap-1 text-emerald-600 text-xs font-bold">
+                                                                    <Icons.Check className="w-4 h-4" /> อนุมัติแล้ว
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => approveTestRecord(app)}
+                                                                    disabled={approvingId === app.id}
+                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50 flex items-center gap-1.5 ml-auto"
+                                                                >
+                                                                    {approvingId === app.id ? (
+                                                                        <span className="flex items-center gap-1"><Icons.Loader className="w-3.5 h-3.5 animate-spin" /> กำลังย้าย...</span>
+                                                                    ) : (
+                                                                        <span className="flex items-center gap-1"><Icons.Check className="w-3.5 h-3.5" /> อนุมัติ → Tracking</span>
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!testView && view === 'add' && (
                             <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
                                 <div className="bg-slate-800 p-6 text-white text-center">
                                     <h2 className="text-xl font-bold">บันทึกข้อมูลผู้สมัคร (ตามหัวข้อ CSV)</h2>
                                 </div>
                                 <form onSubmit={handleSubmit} className="p-8 space-y-8">
-                                    {/* Section 1: Personal */}
                                     <div className="space-y-4">
                                         <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">1. ข้อมูลการสมัครและส่วนตัว</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <div><label className="text-xs font-bold text-slate-400">วันที่สมัคร</label>
-                                            <input type="date" required name="applyDate" value={formData.applyDate} onChange={e => setFormData({...formData, applyDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                            <input type="date" required value={formData.applyDate} onChange={e => setFormData({...formData, applyDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
                                             <div><label className="text-xs font-bold text-slate-400">ชื่อ-นามสกุล</label>
                                             <input required placeholder="ระบุชื่อจริง" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 focus:ring-2 ring-indigo-500/20" /></div>
                                             <div><label className="text-xs font-bold text-slate-400">เบอร์โทรศัพท์</label>
                                             <input required placeholder="08x-xxxxxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
                                         </div>
                                     </div>
-
-                                    {/* Section 2: Work Info */}
                                     <div className="space-y-4">
                                         <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">2. ข้อมูลสังกัดและตำแหน่ง</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -161,8 +318,6 @@
                                             </select></div>
                                         </div>
                                     </div>
-
-                                    {/* Section 3: Status & Tracking */}
                                     <div className="space-y-4">
                                         <h3 className="text-indigo-600 font-black text-xs uppercase tracking-widest border-b pb-2">3. การติดตามผลและประวัติ</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -178,12 +333,10 @@
                                             <input value={formData.education} onChange={e => setFormData({...formData, education: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
                                         </div>
                                     </div>
-
                                     <div className="bg-slate-50 p-6 rounded-2xl space-y-2">
                                         <label className="text-xs font-bold text-slate-400">หมายเหตุเพิ่มเติม</label>
                                         <textarea value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} className="w-full border rounded-xl p-4 text-sm outline-none focus:ring-2 ring-indigo-500/20" rows="3" placeholder="ระบุรายละเอียดอื่นๆ เช่น ประสบการณ์ทำงาน..."></textarea>
                                     </div>
-
                                     <div className="flex gap-4">
                                         <button type="button" onClick={() => setView('list')} className="flex-1 py-4 font-bold text-slate-400 hover:bg-slate-50 rounded-2xl transition">ยกเลิก</button>
                                         <button type="submit" disabled={isSubmitting} className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition flex items-center justify-center gap-2">
@@ -192,13 +345,14 @@
                                     </div>
                                 </form>
                             </div>
-                        ) : (
+                        )}
+
+                        {!testView && view === 'list' && (
                             <div className="space-y-6">
                                 <div className="relative group">
                                     <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-indigo-600 transition" />
                                     <input type="text" placeholder="ค้นหาชื่อผู้สมัคร หรือ สาขา..." className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] shadow-sm focus:ring-4 focus:ring-indigo-500/10 outline-none transition" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                 </div>
-
                                 <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                                     <table className="w-full text-left">
                                         <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
@@ -211,7 +365,7 @@
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {applicants.filter(a => a.name?.includes(searchTerm)).map(app => (
+                                            {applicants.filter(a => a.name?.includes(searchTerm) || a.store?.includes(searchTerm)).map(app => (
                                                 <tr key={app.id} className="hover:bg-slate-50 transition">
                                                     <td className="px-8 py-5">
                                                         <div className="font-bold text-slate-800">{app.name}</div>
@@ -243,7 +397,6 @@
                         )}
                     </main>
 
-                    {/* Edit Modal สำหรับแก้ไขสถานะ (เพิ่มช่อง วันที่สัมภาษณ์ และ วันเริ่มงาน) */}
                     {editingApplicant && (
                         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                             <div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -254,17 +407,17 @@
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div><label className="text-[10px] font-bold text-indigo-600 uppercase">วันที่สัมภาษณ์</label>
-                                        <input type="date" value={editingApplicant.interviewDate} onChange={e => setEditingApplicant({...editingApplicant, interviewDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        <input type="date" value={editingApplicant.interviewDate || ''} onChange={e => setEditingApplicant({...editingApplicant, interviewDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
                                         <div><label className="text-[10px] font-bold text-indigo-600 uppercase">สถานะสัมภาษณ์</label>
-                                        <select value={editingApplicant.interviewStatus} onChange={e => setEditingApplicant({...editingApplicant, interviewStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
+                                        <select value={editingApplicant.interviewStatus || ''} onChange={e => setEditingApplicant({...editingApplicant, interviewStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
                                             {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                                         </select></div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div><label className="text-[10px] font-bold text-indigo-600 uppercase">วันที่เริ่มงาน</label>
-                                        <input type="date" value={editingApplicant.onboardDate} onChange={e => setEditingApplicant({...editingApplicant, onboardDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
+                                        <input type="date" value={editingApplicant.onboardDate || ''} onChange={e => setEditingApplicant({...editingApplicant, onboardDate: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50" /></div>
                                         <div><label className="text-[10px] font-bold text-indigo-600 uppercase">สถานะเริ่มงาน</label>
-                                        <select value={editingApplicant.startStatus} onChange={e => setEditingApplicant({...editingApplicant, startStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
+                                        <select value={editingApplicant.startStatus || ''} onChange={e => setEditingApplicant({...editingApplicant, startStatus: e.target.value})} className="w-full border rounded-xl p-3 text-sm mt-1 bg-slate-50 font-bold">
                                             {START_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                                         </select></div>
                                     </div>
