@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RecruitPro - Full Tracking System</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -65,8 +65,6 @@
 
             // [TEST] Integration state
             const [testApplicants, setTestApplicants] = React.useState([]);
-            const [testView, setTestView] = React.useState(false);
-            const [testLoading, setTestLoading] = React.useState(false);
             const [approvingId, setApprovingId] = React.useState(null);
 
             const STORES = ['1-Lardprao', '25-Suphan Buri', '46-Kanchanaburi', '49-Ratchaburi', '70-Sukhothai'];
@@ -89,7 +87,7 @@
             React.useEffect(() => {
                 firebase.auth().signInAnonymously();
                 firebase.auth().onAuthStateChanged(setUser);
-                
+
                 const unsubscribe = firebase.firestore().collection('recruitment_data')
                     .orderBy('createdAt', 'desc')
                     .onSnapshot(snap => {
@@ -98,43 +96,28 @@
                 return () => unsubscribe();
             }, []);
 
-            // [TEST] Load data from TA-Area-HR integration
-            const loadTestData = () => {
-                setTestLoading(true);
-                firebase.firestore().collection('recruitment_data_TEST')
-                    .orderBy('createdAt', 'desc')
-                    .get()
-                    .then(snap => {
-                        setTestApplicants(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-                        setTestLoading(false);
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        setTestLoading(false);
-                    });
-            };
-
+            // [TEST] Subscribe to recruitment_data_TEST when on test view
             React.useEffect(() => {
-                if (testView) loadTestData();
-            }, [testView]);
+                if (view !== 'test') return;
+                const unsubscribe = firebase.firestore().collection('recruitment_data_TEST')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(snap => {
+                        setTestApplicants(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    });
+                return () => unsubscribe();
+            }, [view]);
 
-            // [TEST] Approve: move from TEST collection to production recruitment_data
+            // [TEST] Approve: copy from TEST collection to production, then delete from TEST
             const approveTestRecord = async (record) => {
                 setApprovingId(record.id);
                 try {
-                    const { sourceSystem, sourceId, _approved, _approvedAt, id, ...prodData } = record;
+                    const { id, ...prodData } = record;
                     await firebase.firestore().collection('recruitment_data').add({
                         ...prodData,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        approvedFrom: 'TA-Area-HR',
-                        approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        approvedFrom: 'TA-Area-HR'
                     });
-                    await firebase.firestore().collection('recruitment_data_TEST').doc(record.id).update({
-                        _approved: true,
-                        _approvedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    setTestApplicants(prev => prev.map(a => a.id === record.id ? { ...a, _approved: true } : a));
-                    alert('อนุมัติ "' + record.name + '" สำเร็จ — ย้ายข้อมูลเข้า Applicant_Tracking แล้ว');
+                    await firebase.firestore().collection('recruitment_data_TEST').doc(record.id).delete();
                 } catch (err) {
                     alert('เกิดข้อผิดพลาด: ' + err.message);
                 }
@@ -172,12 +155,12 @@
                             <h1 className="text-xl font-bold tracking-tight">RecruitPro Tracking</h1>
                         </div>
                         <div className="flex gap-2 flex-wrap">
-                            <button onClick={() => { setView('list'); setTestView(false); }} className={`px-4 py-2 rounded-lg font-bold text-sm ${view === 'list' && !testView ? 'bg-white text-indigo-700' : 'hover:bg-indigo-600'}`}>รายการ</button>
-                            <button onClick={() => { setView('add'); setTestView(false); }} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${view === 'add' && !testView ? 'bg-white text-indigo-700' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
+                            <button onClick={() => setView('list')} className={`px-4 py-2 rounded-lg font-bold text-sm ${view === 'list' ? 'bg-white text-indigo-700' : 'hover:bg-indigo-600'}`}>รายการ</button>
+                            <button onClick={() => setView('add')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 ${view === 'add' ? 'bg-white text-indigo-700' : 'bg-indigo-500 hover:bg-indigo-400'}`}>
                                 <Icons.Plus className="w-4 h-4" /> เพิ่มข้อมูล
                             </button>
-                            <button onClick={() => { setTestView(true); setView('list'); }} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border-2 border-yellow-300 ${testView ? 'bg-yellow-300 text-indigo-900' : 'hover:bg-indigo-600'}`}>
-                                <Icons.Database className="w-4 h-4" /> TA-Area [TEST]
+                            <button onClick={() => setView('test')} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border-2 border-amber-400 ${view === 'test' ? 'bg-amber-400 text-amber-900' : 'text-amber-300 hover:bg-amber-400 hover:text-amber-900'}`}>
+                                <Icons.Database className="w-4 h-4" /> TEST Integration
                             </button>
                         </div>
                     </nav>
@@ -185,94 +168,63 @@
                     <main className="p-4 md:p-8 max-w-6xl mx-auto">
 
                         {/* [TEST] TA-Area Integration View */}
-                        {testView && (
+                        {view === 'test' && (
                             <div className="space-y-6">
-                                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-5">
-                                    <div className="flex items-center justify-between flex-wrap gap-3">
-                                        <div>
-                                            <h2 className="text-lg font-black text-yellow-800 flex items-center gap-2">
-                                                <Icons.Database className="w-5 h-5" />
-                                                ข้อมูลทดสอบจาก TA-Area-HR
-                                            </h2>
-                                            <p className="text-sm text-yellow-700 mt-1">
-                                                ข้อมูลจาก <code className="bg-yellow-100 px-1 rounded font-mono text-xs">recruitment_data_TEST</code> — กด "อนุมัติ" เพื่อย้ายเข้า Applicant_Tracking จริง
-                                            </p>
-                                        </div>
-                                        <button onClick={loadTestData} className="flex items-center gap-2 px-4 py-2 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-xl font-bold text-sm transition">
-                                            <Icons.RefreshCw className="w-4 h-4" /> รีเฟรช
-                                        </button>
-                                    </div>
+                                <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 flex items-center gap-3">
+                                    <span className="text-amber-700 font-black text-sm">⚠️ TEST MODE - ข้อมูลทดสอบจาก TA-Area-HR (ไม่กระทบระบบ Production)</span>
                                 </div>
 
-                                {testLoading ? (
-                                    <div className="flex justify-center py-20">
-                                        <Icons.Loader className="w-8 h-8 text-indigo-400 animate-spin" />
-                                    </div>
-                                ) : testApplicants.length === 0 ? (
+                                {testApplicants.length === 0 ? (
                                     <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                                         <Icons.Database className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                        <p className="text-slate-400 font-bold text-lg">ยังไม่มีข้อมูลในระบบทดสอบ</p>
-                                        <p className="text-slate-300 text-sm mt-2">ไปที่แอป TA-Area-HR แล้วกดปุ่ม Database (ไอคอนฐานข้อมูล) ที่แถวผู้สมัครแต่ละคน</p>
+                                        <p className="text-slate-400 font-bold text-lg">ยังไม่มีข้อมูลจาก TA-Area-HR</p>
                                     </div>
                                 ) : (
                                     <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-                                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                                            <span className="text-sm font-bold text-slate-600">{testApplicants.length} รายการ (อนุมัติแล้ว: {testApplicants.filter(a => a._approved).length})</span>
-                                        </div>
                                         <div className="overflow-x-auto">
                                         <table className="w-full text-left">
                                             <thead className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border-b">
                                                 <tr>
-                                                    <th className="px-6 py-4">รายชื่อ / ติดต่อ</th>
-                                                    <th className="px-6 py-4">ตำแหน่ง / สาขา</th>
-                                                    <th className="px-6 py-4">สถานะ</th>
-                                                    <th className="px-6 py-4">TA / ช่องทาง</th>
-                                                    <th className="px-6 py-4 text-right">การดำเนินการ</th>
+                                                    <th className="px-6 py-4">วันที่สมัคร</th>
+                                                    <th className="px-6 py-4">ชื่อ-นามสกุล/เบอร์</th>
+                                                    <th className="px-6 py-4">สาขา/Area</th>
+                                                    <th className="px-6 py-4">ตำแหน่ง</th>
+                                                    <th className="px-6 py-4">สถานะสัมภาษณ์</th>
+                                                    <th className="px-6 py-4">แหล่งที่มา</th>
+                                                    <th className="px-6 py-4 text-right">Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
                                                 {testApplicants.map(app => (
-                                                    <tr key={app.id} className={`hover:bg-slate-50 transition ${app._approved ? 'bg-emerald-50/40' : ''}`}>
+                                                    <tr key={app.id} className="hover:bg-slate-50 transition">
+                                                        <td className="px-6 py-4 text-sm text-slate-600">{app.applyDate}</td>
                                                         <td className="px-6 py-4">
                                                             <div className="font-bold text-slate-800">{app.name}</div>
                                                             <div className="text-xs text-indigo-500 font-bold">{app.phone}</div>
-                                                            <div className="text-[10px] text-slate-400 mt-0.5">สมัคร: {app.applyDate}</div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="font-semibold text-sm text-slate-700">{app.position}</div>
-                                                            <div className="text-xs text-slate-400">{app.store}</div>
-                                                            <div className="text-[10px] text-slate-400">{app.area}</div>
+                                                            <div className="font-semibold text-sm text-slate-700">{app.store}</div>
+                                                            <div className="text-xs text-slate-400">{app.area}</div>
                                                         </td>
+                                                        <td className="px-6 py-4 text-sm font-semibold text-slate-700">{app.position}</td>
                                                         <td className="px-6 py-4">
                                                             <span className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${app.interviewStatus === 'ผ่านสัมภาษณ์' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
                                                                 {app.interviewStatus}
                                                             </span>
-                                                            {app.onboardDate && <div className="text-[10px] text-slate-400 mt-1">เริ่มงาน: {app.onboardDate}</div>}
                                                         </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="text-xs font-semibold text-slate-600">
-                                                                {app.remark && app.remark.match(/\[TA: ([^\]]+)\]/) ? app.remark.match(/\[TA: ([^\]]+)\]/)[1] : '-'}
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-400 mt-0.5">{app.channel}</div>
-                                                        </td>
+                                                        <td className="px-6 py-4 text-xs text-slate-500">{app.channel}</td>
                                                         <td className="px-6 py-4 text-right">
-                                                            {app._approved ? (
-                                                                <span className="flex items-center justify-end gap-1 text-emerald-600 text-xs font-bold">
-                                                                    <Icons.Check className="w-4 h-4" /> อนุมัติแล้ว
-                                                                </span>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => approveTestRecord(app)}
-                                                                    disabled={approvingId === app.id}
-                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition disabled:opacity-50 flex items-center gap-1.5 ml-auto"
-                                                                >
-                                                                    {approvingId === app.id ? (
-                                                                        <span className="flex items-center gap-1"><Icons.Loader className="w-3.5 h-3.5 animate-spin" /> กำลังย้าย...</span>
-                                                                    ) : (
-                                                                        <span className="flex items-center gap-1"><Icons.Check className="w-3.5 h-3.5" /> อนุมัติ → Tracking</span>
-                                                                    )}
-                                                                </button>
-                                                            )}
+                                                            <button
+                                                                onClick={() => approveTestRecord(app)}
+                                                                disabled={approvingId === app.id}
+                                                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition disabled:opacity-50 flex items-center gap-1.5 ml-auto"
+                                                            >
+                                                                {approvingId === app.id ? (
+                                                                    <span className="flex items-center gap-1"><Icons.Loader className="w-3.5 h-3.5 animate-spin" /> กำลังย้าย...</span>
+                                                                ) : (
+                                                                    <span className="flex items-center gap-1"><Icons.Check className="w-3.5 h-3.5" /> อนุมัติ → Production</span>
+                                                                )}
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -284,7 +236,7 @@
                             </div>
                         )}
 
-                        {!testView && view === 'add' && (
+                        {view === 'add' && (
                             <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
                                 <div className="bg-slate-800 p-6 text-white text-center">
                                     <h2 className="text-xl font-bold">บันทึกข้อมูลผู้สมัคร (ตามหัวข้อ CSV)</h2>
@@ -347,7 +299,7 @@
                             </div>
                         )}
 
-                        {!testView && view === 'list' && (
+                        {view === 'list' && (
                             <div className="space-y-6">
                                 <div className="relative group">
                                     <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-indigo-600 transition" />
